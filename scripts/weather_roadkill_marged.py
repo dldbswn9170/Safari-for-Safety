@@ -46,36 +46,40 @@ def find_nearest_station(roadkill_lat, roadkill_lon, stations_df):
 
 
 def parse_weather_line(line):
-    """기상 데이터 한 줄을 파싱"""
+    """기상 데이터 한 줄을 파싱 (관측일, 지점번호, 일평균기온, 일강수량 추출)"""
     try:
         parts = line.strip().split(",")
-        if len(parts) < 6:
+        if len(parts) < 39:
             return None
 
-        date = parts[0]
-        station = parts[1]
+        date = parts[0].strip()
+        station = parts[1].strip()
         avg_temp = None
         rainfall = None
 
-        # 평균기온 (3번째 컬럼)
-        if len(parts) > 2 and parts[2] not in ["-9.0", ""]:
+        # 일평균기온 (index 10)
+        if parts[10] not in ["", "-9.0", "-9.00"]:
             try:
-                temp_val = float(parts[2])
-                if temp_val != -9.0:
-                    avg_temp = temp_val
-            except Exception:
+                avg_temp = float(parts[10])
+            except ValueError:
                 pass
 
-        # 강수량 (5번째 컬럼)
-        if len(parts) > 5 and parts[5] not in ["-9.0", ""]:
+        # 일강수량 (index 38)
+        if parts[38] not in ["", "-9.0", "-9.00"]:
             try:
-                rain_val = float(parts[5])
-                if rain_val != -9.0:
-                    rainfall = rain_val
-            except Exception:
+                rainfall = float(parts[38])
+            except ValueError:
                 pass
 
-        return {"일자": date, "지점": station, "평균기온": avg_temp, "강수량": rainfall}
+        # 날짜 포맷 통일 (YYYYMMDD)
+        date = date.replace("-", "").strip()
+
+        return {
+            "일자": date,
+            "지점": station,
+            "일평균기온": avg_temp,
+            "강수량": rainfall
+        }
     except Exception:
         return None
 
@@ -124,7 +128,8 @@ def create_full_weather_dataset():
             print(f"{year}년 기상 데이터 없음")
 
     weather_df = pd.DataFrame(weather_data)
-    weather_df_valid = weather_df[weather_df["평균기온"].notna()]
+    weather_df["지점"] = weather_df["지점"].astype(str).str.strip().str.replace(".0", "", regex=False)
+    weather_df_valid = weather_df[weather_df["일평균기온"].notna()]
     print(f"전체 기상 데이터: {len(weather_df_valid):,}행")
 
     # 4️⃣ 로드킬 데이터 전처리
@@ -204,19 +209,19 @@ def create_full_weather_dataset():
             "가까운_관측소_이름": nearest_station["지점명"],
             "거리_km": round(distance, 2),
             "관측소_운영여부": is_operating,
-            "평균기온": weather_info["평균기온"] if weather_info is not None else None,
+            "일평균기온": weather_info["일평균기온"] if weather_info is not None else None,
             "강수량": weather_info["강수량"] if weather_info is not None else None
         })
 
     # 6️⃣ 결과 저장
     result_df = pd.DataFrame(matched_results)
-    output_path = "data/processed/roadkill_with_weather_full.csv"
+    output_path = "data/processed/roadkill_weather_merged.csv"
     result_df.to_csv(output_path, index=False, encoding="utf-8-sig")
 
     print(f"\n✅ 전체 매칭 완료! ({len(result_df):,}건)")
     print(f"저장 위치: {output_path}")
     print(f"- 평균 거리: {result_df['거리_km'].mean():.2f}km")
-    print(f"- 날씨 데이터 매칭률: {result_df['평균기온'].notna().mean() * 100:.1f}%")
+    print(f"- 날씨 데이터 매칭률: {result_df['일평균기온'].notna().mean() * 100:.1f}%")
 
     return result_df
 
