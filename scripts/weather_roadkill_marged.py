@@ -8,6 +8,7 @@ from math import radians, cos, sin, asin, sqrt
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import time
 
 warnings.filterwarnings("ignore")
 
@@ -46,29 +47,73 @@ def find_nearest_station(roadkill_lat, roadkill_lon, stations_df):
 
 
 def parse_weather_line(line):
-    """기상 데이터 한 줄을 파싱 (관측일, 지점번호, 일평균기온, 일강수량 추출)"""
+    """기상 데이터 한 줄을 파싱
+    - 필드: 일자, 지점, 일평균기온, 강수량, 일평균풍속, 일조시간, 전운량, 강수계속시간, 습도
+    - 결측 처리: 강수량 결측은 0으로 처리, 그 외 결측은 None
+    """
     try:
+        # CSV 형식 (comma-separated)
         parts = line.strip().split(",")
-        if len(parts) < 39:
+        if len(parts) < 42:
             return None
 
         date = parts[0].strip()
         station = parts[1].strip()
         avg_temp = None
-        rainfall = None
+        rainfall = 0.0  # 결측 시 0 처리
+        avg_wind = None
+        sunshine_hours = None
+        total_cloud_amount = None
+        precipitation_duration = None
+        humidity = None
 
-        # 일평균기온 (index 10)
-        if parts[10] not in ["", "-9.0", "-9.00"]:
+        # 일평균기온 (index 10: "평균기온(°C)")
+        if len(parts) > 10 and parts[10] not in ["", "-9.0", "-9.00"]:
             try:
                 avg_temp = float(parts[10])
-            except ValueError:
+            except (ValueError, IndexError):
                 pass
 
-        # 일강수량 (index 38)
-        if parts[38] not in ["", "-9.0", "-9.00"]:
+        # 일평균풍속 (index 2: "평균풍속(m/s)")
+        if len(parts) > 2 and parts[2] not in ["", "-9.0", "-9.00"]:
+            try:
+                avg_wind = float(parts[2])
+            except (ValueError, IndexError):
+                pass
+
+        # 일조시간 (index 32: "일조합(hr)")
+        if len(parts) > 32 and parts[32] not in ["", "-9.0", "-9.00"]:
+            try:
+                sunshine_hours = float(parts[32])
+            except (ValueError, IndexError):
+                pass
+
+        # 전운량 (index 31: "평균전운량(1/10)")
+        if len(parts) > 31 and parts[31] not in ["", "-9.0", "-9.00"]:
+            try:
+                total_cloud_amount = float(parts[31])
+            except (ValueError, IndexError):
+                pass
+
+        # 강수계속시간 (index 40: "강수계속시간(hr)")
+        if len(parts) > 40 and parts[40] not in ["", "-9.0", "-9.00"]:
+            try:
+                precipitation_duration = float(parts[40])
+            except (ValueError, IndexError):
+                pass
+
+        # 습도 (index 18: "평균상대습도(%)")
+        if len(parts) > 18 and parts[18] not in ["", "-9.0", "-9.00"]:
+            try:
+                humidity = float(parts[18])
+            except (ValueError, IndexError):
+                pass
+
+        # 일강수량 (index 38: "일강수량(mm)") → 결측치 0 처리
+        if len(parts) > 38 and parts[38] not in ["", "-9", "-9.0", "-9.00"]:
             try:
                 rainfall = float(parts[38])
-            except ValueError:
+            except (ValueError, IndexError):
                 pass
 
         # 날짜 포맷 통일 (YYYYMMDD)
@@ -78,7 +123,12 @@ def parse_weather_line(line):
             "일자": date,
             "지점": station,
             "일평균기온": avg_temp,
-            "강수량": rainfall
+            "강수량": rainfall,
+            "일평균풍속": avg_wind,
+            "일조시간": sunshine_hours,
+            "전운량": total_cloud_amount,
+            "강수계속시간": precipitation_duration,
+            "습도": humidity
         }
     except Exception:
         return None
@@ -98,34 +148,33 @@ def create_full_weather_dataset():
 
     # 2️⃣ 운영 중인 관측소 수집
     operating_stations = set()
-    for year in [2020, 2021, 2022]:
-        try:
-            with open(f"data/raw/weather/weather_{year}.csv", "r", encoding="utf-8") as f:
-                lines = f.readlines()
-            for line in lines[1:]:
-                parts = line.strip().split(",")
-                if len(parts) > 1:
-                    operating_stations.add(parts[1])
-        except FileNotFoundError:
-            print(f"{year}년 기상 데이터 없음")
+    try:
+        # 모든 년도 데이터가 하나의 파일에 저장 (CSV 형식)
+        with open("data/raw/weather/weather_data.csv", "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for line in lines[1:]:  # 첫 줄은 헤더
+            parts = line.strip().split(",")
+            if len(parts) > 1:
+                operating_stations.add(parts[1])
+    except FileNotFoundError:
+        print("기상 데이터 파일 없음")
 
     operating_station_ids = {int(s) for s in operating_stations if s.isdigit()}
     print(f"사용할 관측소 개수: {len(operating_station_ids)}개")
 
     # 3️⃣ 기상 데이터 로드
     weather_data = []
-    for year in [2020, 2021, 2022]:
-        try:
-            print(f"{year}년 기상 데이터 처리 중...")
-            with open(f"data/raw/weather/weather_{year}.csv", "r", encoding="utf-8") as f:
-                lines = f.readlines()
+    try:
+        print("기상 데이터 처리 중...")
+        with open("data/raw/weather/weather_data.csv", "r", encoding="utf-8") as f:
+            lines = f.readlines()
 
-            for line in lines[1:]:
-                parsed = parse_weather_line(line)
-                if parsed:
-                    weather_data.append(parsed)
-        except FileNotFoundError:
-            print(f"{year}년 기상 데이터 없음")
+        for line in lines[1:]:  # 첫 줄은 헤더
+            parsed = parse_weather_line(line)
+            if parsed:
+                weather_data.append(parsed)
+    except FileNotFoundError:
+        print("기상 데이터 파일 없음")
 
     weather_df = pd.DataFrame(weather_data)
     weather_df["지점"] = weather_df["지점"].astype(str).str.strip().str.replace(".0", "", regex=False)
@@ -141,11 +190,17 @@ def create_full_weather_dataset():
     print(f"좌표 유효 데이터: {len(roadkill_df):,}건")
 
     # 5️⃣ 매칭 수행
-    matched_results = []
-
+    roadkill_results = []
+    weather_dict = {}  # 중복 제거
+    matching_results = []
+    last_print_time = time.time()  # 마지막 출력 시간
+    
     for idx, row in roadkill_df.iterrows():
-        if idx % 1000 == 0:
+        # 1분(60초)마다 진행률 출력
+        current_time = time.time()
+        if current_time - last_print_time >= 20:
             print(f"진행률: {idx}/{len(roadkill_df)} ({idx / len(roadkill_df) * 100:.1f}%)")
+            last_print_time = current_time
 
         nearest_station, distance = find_nearest_station(
             row["GPS Y"], row["GPS X"], stations_df
@@ -198,32 +253,66 @@ def create_full_weather_dataset():
                     distance = min_operating_dist
                     is_operating = True
 
-        # 결과 저장
-        matched_results.append({
+        # 로드킬 데이터 저장 (생성 ID 제거, 원본 키 포함)
+        roadkill_results.append({
             "일련번호": row["일련번호"],
             "접수일자": row["접수일자"],
+            "접수시각": row["접수시각"],
             "관할기관": row["관할기관"],
-            "로드킬_위도": row["GPS Y"],
-            "로드킬_경도": row["GPS X"],
-            "가까운_관측소_번호": nearest_station["지점번호"],
-            "가까운_관측소_이름": nearest_station["지점명"],
-            "거리_km": round(distance, 2),
-            "관측소_운영여부": is_operating,
-            "일평균기온": weather_info["일평균기온"] if weather_info is not None else None,
-            "강수량": weather_info["강수량"] if weather_info is not None else None
+            "위도": row["GPS Y"],
+            "경도": row["GPS X"]
         })
+        
+        # 날씨 데이터 저장 (중복 제거)
+        if weather_info is not None:
+            weather_id = f"{nearest_station['지점번호']}_{date_str}"
+            if weather_id not in weather_dict:
+                weather_dict[weather_id] = {
+                    "지점번호": nearest_station["지점번호"],
+                    "지점명": nearest_station["지점명"],
+                    "일자": date_str,
+                    "일평균기온": weather_info["일평균기온"],
+                    "강수량": weather_info["강수량"],
+                    "일평균풍속": weather_info.get("일평균풍속"),
+                    "일조시간": weather_info.get("일조시간"),
+                    "전운량": weather_info.get("전운량"),
+                    "강수계속시간": weather_info.get("강수계속시간"),
+                    "습도": weather_info.get("습도")
+                }
+            
+            # 매칭 테이블 저장 (생성 ID 제거, 원본 키 사용)
+            matching_results.append({
+                "일련번호": row["일련번호"],
+                "지점번호": int(nearest_station["지점번호"]),
+                "접수일자": date_str,
+                "접수시각": row["접수시각"],
+                "거리_km": round(distance, 2),
+                "관측소_운영여부": is_operating
+            })
 
-    # 6️⃣ 결과 저장
-    result_df = pd.DataFrame(matched_results)
-    output_path = "data/processed/roadkill_weather_merged.csv"
-    result_df.to_csv(output_path, index=False, encoding="utf-8-sig")
+    # 6️⃣ 결과 저장 (완전 분리)
+    roadkill_df_result = pd.DataFrame(roadkill_results)
+    weather_df_result = pd.DataFrame(list(weather_dict.values()))
+    matching_df_result = pd.DataFrame(matching_results)
+    
+    # 저장
+    roadkill_path = "data/processed/roadkill_data.csv"
+    roadkill_df_result.to_csv(roadkill_path, index=False, encoding="utf-8-sig")
+    
+    weather_path = "data/processed/weather_data.csv"
+    weather_df_result.to_csv(weather_path, index=False, encoding="utf-8-sig")
+    
+    matching_path = "data/processed/roadkill_weather_matching.csv"
+    matching_df_result.to_csv(matching_path, index=False, encoding="utf-8-sig")
 
-    print(f"\n✅ 전체 매칭 완료! ({len(result_df):,}건)")
-    print(f"저장 위치: {output_path}")
-    print(f"- 평균 거리: {result_df['거리_km'].mean():.2f}km")
-    print(f"- 날씨 데이터 매칭률: {result_df['일평균기온'].notna().mean() * 100:.1f}%")
+    print(f"\n완료!")
+    print(f"로드킬 데이터: {len(roadkill_df_result):,}건 - {roadkill_path}")
+    print(f"날씨 데이터: {len(weather_df_result):,}건 - {weather_path}")
+    print(f"매칭 테이블: {len(matching_df_result):,}건 - {matching_path}")
+    print(f"- 평균 거리: {matching_df_result['거리_km'].mean():.2f}km")
+    print(f"- 날씨 매칭률: {len(matching_results)/len(roadkill_results)*100:.1f}% ({len(matching_results)}/{len(roadkill_results)}건)")
 
-    return result_df
+    return roadkill_df_result, weather_df_result, matching_df_result
 
 
 if __name__ == "__main__":
