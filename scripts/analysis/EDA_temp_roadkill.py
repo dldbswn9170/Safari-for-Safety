@@ -7,8 +7,21 @@ plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
 # ====== 1️⃣ 데이터 불러오기 ======
-roadkill = pd.read_csv("data/processed/roadkill_data.csv")
-weather = pd.read_csv("data/processed/weather_data.csv")
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+roadkill_path = os.path.join(BASE_DIR, 'data', 'processed', 'roadkill_data.csv')
+weather_path = os.path.join(BASE_DIR, 'data', 'processed', 'weather_data.csv')
+
+if not os.path.exists(roadkill_path):
+    print(f"❌ 파일을 찾을 수 없습니다: {roadkill_path}")
+    exit(1)
+if not os.path.exists(weather_path):
+    print(f"❌ 파일을 찾을 수 없습니다: {weather_path}")
+    exit(1)
+
+roadkill = pd.read_csv(roadkill_path, encoding='utf-8-sig')
+weather = pd.read_csv(weather_path, encoding='utf-8-sig')
 
 # ====== 2️⃣ 날짜 형식 통일 ======
 roadkill['접수일자'] = pd.to_datetime(roadkill['접수일자'])

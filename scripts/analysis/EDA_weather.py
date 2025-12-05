@@ -9,7 +9,15 @@ plt.rcParams['axes.unicode_minus'] = False
 # -------------------------------
 # 1️⃣ 데이터 불러오기 및 준비
 # -------------------------------
-weather_df = pd.read_csv('data/processed/weather_data.csv', encoding='utf-8')
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+weather_path = os.path.join(BASE_DIR, 'data', 'processed', 'weather_data.csv')
+
+if not os.path.exists(weather_path):
+    print(f"❌ 파일을 찾을 수 없습니다: {weather_path}")
+    exit(1)
+
+weather_df = pd.read_csv(weather_path, encoding='utf-8-sig')
 
 if '일자' in weather_df.columns:
     weather_df.rename(columns={'일자': '날짜'}, inplace=True)

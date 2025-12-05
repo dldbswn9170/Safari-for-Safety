@@ -41,7 +41,8 @@ def download_weather_data():
     """기상청 API에서 데이터를 다운로드하고 단일 CSV로 저장"""
     start_date = datetime(2020, 8, 1)
     end_date = datetime(2022, 6, 30)
-    output_dir = "data/raw/weather"
+    BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+    output_dir = os.path.join(BASE_DIR, "data", "raw", "weather")
     os.makedirs(output_dir, exist_ok=True)
 
     save_path = os.path.join(output_dir, "weather_data.csv")

@@ -5,7 +5,16 @@ import matplotlib.font_manager as fm
 # ==========================
 # 1️⃣ 데이터 불러오기
 # ==========================
-df = pd.read_csv("data/processed/roadkill_data.csv")  # 경로는 파일 위치에 맞게 수정
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+csv_path = os.path.join(BASE_DIR, 'data', 'processed', 'roadkill_data.csv')
+
+if not os.path.exists(csv_path):
+    print(f"❌ 파일을 찾을 수 없습니다: {csv_path}")
+    print(f"현재 작업 디렉토리: {os.getcwd()}")
+    exit(1)
+
+df = pd.read_csv(csv_path, encoding='utf-8-sig')
 
 # ==========================
 # 2️⃣ 날짜 파싱

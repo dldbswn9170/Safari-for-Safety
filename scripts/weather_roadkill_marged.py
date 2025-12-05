@@ -140,8 +140,19 @@ def create_full_weather_dataset():
 
     # 1️⃣ 데이터 로드
     print("데이터 로드 중...")
-    roadkill_df = pd.read_csv("data/raw/roadkill/roadkill_merged.csv")
-    stations_df = pd.read_csv("data/raw/weather/weather_stations.csv")
+    BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+    roadkill_path = os.path.join(BASE_DIR, "data", "raw", "roadkill", "roadkill_merged.csv")
+    stations_path = os.path.join(BASE_DIR, "data", "raw", "weather", "weather_stations.csv")
+    
+    if not os.path.exists(roadkill_path):
+        print(f"❌ 파일을 찾을 수 없습니다: {roadkill_path}")
+        return None, None, None
+    if not os.path.exists(stations_path):
+        print(f"❌ 파일을 찾을 수 없습니다: {stations_path}")
+        return None, None, None
+    
+    roadkill_df = pd.read_csv(roadkill_path, encoding='utf-8-sig')
+    stations_df = pd.read_csv(stations_path, encoding='utf-8-sig')
 
     print(f"전체 로드킬 데이터: {len(roadkill_df):,}건")
     print(f"관측소 데이터: {len(stations_df):,}개")
@@ -150,7 +161,8 @@ def create_full_weather_dataset():
     operating_stations = set()
     try:
         # 모든 년도 데이터가 하나의 파일에 저장 (CSV 형식)
-        with open("data/raw/weather/weather_data.csv", "r", encoding="utf-8") as f:
+        weather_data_path = os.path.join(BASE_DIR, "data", "raw", "weather", "weather_data.csv")
+        with open(weather_data_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         for line in lines[1:]:  # 첫 줄은 헤더
             parts = line.strip().split(",")
@@ -166,7 +178,8 @@ def create_full_weather_dataset():
     weather_data = []
     try:
         print("기상 데이터 처리 중...")
-        with open("data/raw/weather/weather_data.csv", "r", encoding="utf-8") as f:
+        weather_data_path = os.path.join(BASE_DIR, "data", "raw", "weather", "weather_data.csv")
+        with open(weather_data_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         for line in lines[1:]:  # 첫 줄은 헤더
@@ -295,20 +308,23 @@ def create_full_weather_dataset():
     weather_df_result = pd.DataFrame(list(weather_dict.values()))
     matching_df_result = pd.DataFrame(matching_results)
     
-    # 저장
-    roadkill_path = "data/processed/roadkill_data.csv"
-    roadkill_df_result.to_csv(roadkill_path, index=False, encoding="utf-8-sig")
+    # 저장 경로 설정
+    processed_dir = os.path.join(BASE_DIR, "data", "processed")
+    os.makedirs(processed_dir, exist_ok=True)
     
-    weather_path = "data/processed/weather_data.csv"
-    weather_df_result.to_csv(weather_path, index=False, encoding="utf-8-sig")
+    roadkill_output_path = os.path.join(processed_dir, "roadkill_data.csv")
+    roadkill_df_result.to_csv(roadkill_output_path, index=False, encoding="utf-8-sig")
     
-    matching_path = "data/processed/roadkill_weather_matching.csv"
-    matching_df_result.to_csv(matching_path, index=False, encoding="utf-8-sig")
+    weather_output_path = os.path.join(processed_dir, "weather_data.csv")
+    weather_df_result.to_csv(weather_output_path, index=False, encoding="utf-8-sig")
+    
+    matching_output_path = os.path.join(processed_dir, "roadkill_weather_matching.csv")
+    matching_df_result.to_csv(matching_output_path, index=False, encoding="utf-8-sig")
 
     print(f"\n완료!")
-    print(f"로드킬 데이터: {len(roadkill_df_result):,}건 - {roadkill_path}")
-    print(f"날씨 데이터: {len(weather_df_result):,}건 - {weather_path}")
-    print(f"매칭 테이블: {len(matching_df_result):,}건 - {matching_path}")
+    print(f"로드킬 데이터: {len(roadkill_df_result):,}건 - {roadkill_output_path}")
+    print(f"날씨 데이터: {len(weather_df_result):,}건 - {weather_output_path}")
+    print(f"매칭 테이블: {len(matching_df_result):,}건 - {matching_output_path}")
     print(f"- 평균 거리: {matching_df_result['거리_km'].mean():.2f}km")
     print(f"- 날씨 매칭률: {len(matching_results)/len(roadkill_results)*100:.1f}% ({len(matching_results)}/{len(roadkill_results)}건)")
 

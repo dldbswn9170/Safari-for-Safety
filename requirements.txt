@@ -1,0 +1,10 @@
+# Python 패키지 의존성
+Flask==2.3.3
+flask-cors==4.0.0
+pandas==2.1.1
+numpy==1.24.3
+matplotlib==3.7.2
+seaborn==0.12.2
+requests==2.31.0
+openpyxl==3.1.2
+jupyter==1.0.0
