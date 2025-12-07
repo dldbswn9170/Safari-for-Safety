@@ -5,11 +5,16 @@ import mapboxgl from "mapbox-gl";
 import Sidebar from "./components/Sidebar";
 import RoadkillChart from "./components/RoadkillChart";
 
+// ⭐ 선택적 기능: 로그인/신고 모달 (삭제해도 기존 기능 작동)
+import AuthModal from "./components/AuthModal";
+import ReportModal from "./components/ReportModal";
+
 import {
   mapStyles,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
   regionCenters,
+  regionNameMapping,
 } from "./utils/constants";
 
 import {
@@ -37,6 +42,27 @@ export default function App() {
   const [geojsonData, setGeojsonData] = useState(null);
   const [mapStyle, setMapStyle] = useState(mapStyles.light.url);
   const [isChartOpen, setIsChartOpen] = useState(false);
+
+  // ⭐ 선택적 기능: 로그인/신고 상태 관리 (삭제 가능)
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // ⭐ 반응형: Sidebar 토글 상태 (모바일용)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // ⭐ 선택적 기능: 페이지 로드시 저장된 로그인 정보 확인 (삭제 가능)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    if (token && userStr) {
+      try {
+        setCurrentUser(JSON.parse(userStr));
+      } catch (err) {
+        console.error('사용자 정보 로드 실패:', err);
+      }
+    }
+  }, []);
 
 
   // ⭐ 지역 선택 핸들러
@@ -114,20 +140,30 @@ export default function App() {
 
 
 
-  // ⭐ 로드킬 CSV 불러오기
-  useEffect(() => {
+  // ⭐ 로드킬 데이터 불러오기 함수 (재사용 가능)
+  const fetchRoadkillData = () => {
     fetch("/api/roadkill")
       .then((res) => res.json())
-      .then((data) => {
+      .then((response) => {
+        // BK 백엔드는 {success, count, data} 형식으로 응답
+        const data = response.data || response;
 
         setRoadkillData(data);
 
         const geoData = createGeoJSONData(data);
 
         // ⭐ 단계별 클러스터 등록
-        addRoadkillClusterByLevel(map.current, geoData);
+        if (map.current && map.current.loaded()) {
+          // 기존 레이어 제거 후 다시 추가
+          addRoadkillClusterByLevel(map.current, geoData);
+        }
       })
       .catch((err) => console.error("🚨 Roadkill API Fetch Error:", err));
+  };
+
+  // ⭐ 로드킬 데이터 초기 로드
+  useEffect(() => {
+    fetchRoadkillData();
   }, []);
 
 
@@ -138,9 +174,18 @@ export default function App() {
       ? roadkillData
       : roadkillData.filter((d) => {
           if (!d.관할기관) return false;
-          // 지역명 일치 확인 (부분 일치 허용)
-          return d.관할기관.includes(selectedRegion) || 
-                 selectedRegion.includes(d.관할기관.split(" ")[0]);
+
+          // 지역명 정규화 (짧은 형식 → 긴 형식)
+          const normalizedSelected = regionNameMapping[selectedRegion] || selectedRegion;
+
+          // DB 지역명의 첫 단어 추출 (예: "경기 수원시" => "경기")
+          const dbRegionShort = d.관할기관.split(" ")[0];
+          const dbRegionNormalized = regionNameMapping[dbRegionShort] || d.관할기관;
+
+          // 정규화된 이름으로 매칭 또는 부분 일치
+          return dbRegionNormalized.includes(normalizedSelected) ||
+                 normalizedSelected.includes(dbRegionShort) ||
+                 d.관할기관.includes(selectedRegion);
         });
 
   const totalCount = filteredData.length;
@@ -181,6 +226,15 @@ export default function App() {
         overflow: "hidden",
       }}
     >
+      {/* ⭐ 반응형: 햄버거 메뉴 버튼 (모바일에서만 표시) */}
+      <button
+        className="hamburger-button"
+        onClick={() => setIsSidebarOpen(true)}
+        aria-label="메뉴 열기"
+      >
+        ☰
+      </button>
+
       <Sidebar
         selectedRegion={selectedRegion}
         setSelectedRegion={setSelectedRegion}
@@ -191,6 +245,16 @@ export default function App() {
         mapStyles={mapStyles}
         regionCoordinates={regionCoordinates}
         currentData={currentData}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        currentUser={currentUser}
+        onAuthClick={() => setIsAuthModalOpen(true)}
+        onReportClick={() => setIsReportModalOpen(true)}
+        onLogout={() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setCurrentUser(null);
+        }}
       />
 
       <div
@@ -265,11 +329,13 @@ export default function App() {
               <span>{isChartOpen ? "차트 닫기" : "차트 보기"}</span>
             </button>
           </div>
+
         </div>
 
         {/* 차트 영역 - 지도 아래 */}
         {isChartOpen && (
           <div
+            className="chart-container"
             style={{
               height: "500px",
               background: "#1a1a1a",
@@ -287,6 +353,27 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* ⭐ 선택적 기능: 로그인/회원가입 모달 (삭제 가능) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthModalOpen(false);
+        }}
+      />
+
+      {/* ⭐ 선택적 기능: 로드킬 신고 모달 (삭제 가능) */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onReportSuccess={(newReport) => {
+          setIsReportModalOpen(false);
+          // 신고 성공 후 데이터 새로고침 → 지도/차트 자동 업데이트
+          fetchRoadkillData();
+        }}
+      />
     </div>
   );
 }

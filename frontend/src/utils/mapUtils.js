@@ -2,6 +2,7 @@
 
 import {
   regionCenters,
+  regionNameMapping,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
   REGION_ZOOM,
@@ -13,9 +14,20 @@ import {
 export function highlightRegion(map, geojsonData, regionName, isAll = false) {
   if (!geojsonData || !map || !map.getSource || !map.getSource("regions")) return;
 
+  // 지역명 정규화 (짧은 형식을 긴 형식으로 변환)
+  const normalizedRegionName = regionName ? (regionNameMapping[regionName] || regionName) : null;
+
   geojsonData.features.forEach((f) => {
     const id = f.id;
-    const isSelected = isAll || (regionName && f.properties.name === regionName);
+    const featureName = f.properties.name;
+
+    // 정규화된 이름으로 매칭하거나 부분 일치 허용
+    const isSelected = isAll ||
+      (normalizedRegionName && (
+        featureName === normalizedRegionName ||
+        featureName.includes(normalizedRegionName.replace(/특별시|광역시|특별자치시|특별자치도|도$/g, ''))
+      ));
+
     map.setFeatureState({ source: "regions", id }, { highlight: isSelected });
   });
 }
@@ -40,18 +52,24 @@ export function flyToRegion(map, regionName) {
     return;
   }
 
-  // 정확 일치 우선
-  let coords = regionCenters[regionName];
+  // 지역명 정규화 (짧은 형식을 긴 형식으로 변환)
+  const normalizedRegionName = regionNameMapping[regionName] || regionName;
 
-  // 부분 일치 허용 (예: '서울' => '서울특별시')
+  // 정규화된 이름으로 좌표 찾기
+  let coords = regionCenters[normalizedRegionName];
+
+  // 여전히 못 찾으면 부분 일치 시도
   if (!coords) {
-    const matchKey = Object.keys(regionCenters).find((key) => key.includes(regionName));
+    const matchKey = Object.keys(regionCenters).find((key) =>
+      key.includes(normalizedRegionName) ||
+      normalizedRegionName.includes(key.replace(/특별시|광역시|특별자치시|특별자치도|도$/g, ''))
+    );
     if (matchKey) {
       coords = regionCenters[matchKey];
       console.log(`flyToRegion: 부분 일치로 매칭 '${regionName}' => '${matchKey}'`);
     }
   } else {
-    console.log(`flyToRegion: 정확 매칭 '${regionName}'`);
+    console.log(`flyToRegion: 정규화 매칭 '${regionName}' => '${normalizedRegionName}'`);
   }
 
   if (coords) {

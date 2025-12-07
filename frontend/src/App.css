@@ -22,3 +22,60 @@ body {
 
 /* Mapbox GL CSS */
 @import 'mapbox-gl/dist/mapbox-gl.css';
+
+/* 반응형 유틸리티 클래스 */
+.hamburger-button {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+  padding: 10px 14px;
+  background: rgba(74, 144, 226, 0.9);
+  border: 1px solid #4a90e2;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: all 0.3s ease;
+}
+
+.hamburger-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* 모바일: 0 ~ 768px */
+@media (max-width: 768px) {
+  .hamburger-button {
+    display: block;
+  }
+
+  /* 차트 높이 조정 */
+  .chart-container {
+    height: 350px !important;
+  }
+
+  /* 버튼 크기 조정 */
+  .map-buttons button {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    gap: 6px !important;
+  }
+}
+
+/* 태블릿: 768px ~ 1024px */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar {
+    width: 280px !important;
+  }
+}
+
+/* 모바일 환경에서 터치 개선 */
+@media (hover: none) and (pointer: coarse) {
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

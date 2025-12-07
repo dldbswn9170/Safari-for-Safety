@@ -81,7 +81,7 @@ export default function RoadkillChart({ roadkillData = [], selectedRegion = "전
       {/* 지역별 발생 건수 */}
       {regionData.length > 0 && (
         <div>
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={window.innerWidth <= 768 ? 300 : 400}>
             <BarChart data={regionData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
               <XAxis 
